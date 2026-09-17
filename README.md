@@ -1,93 +1,179 @@
-# Review Agent
+# mr-review-agent
 
-
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+An automated **GitLab Merge Request reviewer** built on the Lambda-first agent
+framework. A GitLab webhook fires on every MR open/update; API Gateway invokes
+this Lambda; the agent fetches the diff via the GitLab API, reviews it with an
+LLM, and posts inline comments + a summary back on the MR.
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/tools/pd-analyzer/review-agent.git
-git branch -M main
-git push -uf origin main
+GitLab (Merge request events webhook)
+      │  POST
+      ▼
+API Gateway ──► Lambda (agent.lambda_handler.lambda_handler)
+                      │  runs the "mr_review" agent (ReAct loop)
+                      ▼
+                GitLab REST API  ◄── fetch diffs / post review
 ```
 
-## Integrate with your tools
+## What it reviews
 
-* [Set up project integrations](https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/tools/pd-analyzer/review-agent/-/settings/integrations)
+Correctness, security (injection, secrets, authz), reliability (leaks, missing
+timeouts, swallowed errors), maintainability, test coverage, and consistency.
+Findings are classified **blocker / major / minor / nit**, posted as inline
+comments (with GitLab `suggestion` blocks where useful) plus one summary
+comment with a verdict.
 
-## Collaborate with your team
+## Project layout
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```
+mr-review-agent/
+├── config.yaml                 # LLM + GitLab settings (secrets via env)
+├── sample_webhook_event.json   # example GitLab MR webhook payload
+├── pyproject.toml / requirements.txt
+└── src/agent/
+    ├── core/ tools/ llm/ flavors/   # the framework (unchanged)
+    ├── config.py               # + GitLabConfig section
+    ├── gitlab_client.py         # minimal GitLab REST v4 client
+    ├── lambda_handler.py        # parses GitLab MR webhook -> review prompt
+    └── agents/mr_review/
+        ├── instructions.md      # the reviewer's system prompt
+        └── tools/
+            ├── _base.py                    # GitLabTool base (config + client)
+            ├── get_mr_details.py
+            ├── get_mr_changes.py
+            ├── get_file_content.py
+            ├── post_mr_comment.py
+            ├── post_mr_inline_comment.py
+            └── approve_mr.py
+```
 
-## Test and Deploy
+## Tools the agent has
 
-Use the built-in continuous integration in GitLab.
+| Tool | Purpose |
+|------|---------|
+| `get_mr_details` | MR title/description/author/branches/commits |
+| `get_mr_changes` | per-file unified diffs (primary review input) |
+| `get_branch_diff` | branch-vs-default diff for the no-MR CI case |
+| `get_file_content` | full file at a ref for extra context |
+| `post_mr_inline_comment` | line-anchored comment (auto-resolves diff SHAs) |
+| `post_mr_comment` | overall review summary comment |
+| `approve_mr` | approve (disabled unless `gitlab.approve=true`) |
+| `bash` | built-in shell tool (inherited from the framework) |
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+## Configuration
 
-***
+`config.yaml` is overlaid by environment variables (which win). In Lambda, set
+secrets as env vars — do not commit them.
 
-# Editing this README
+| Env var | Purpose |
+|---------|---------|
+| `GITLAB_URL` | e.g. `https://gitlab.example.com` (no `/api/v4`) |
+| `GITLAB_TOKEN` | PAT/Project token with **`api`** scope |
+| `GITLAB_POST_COMMENTS` | `true`/`false` — allow posting (default true) |
+| `GITLAB_APPROVE` | `true`/`false` — allow auto-approve (default false) |
+| `AGENT_API_KEY` / `AGENT_SIEMENS_API_KEY` | LLM gateway key |
+| `AGENT_LLM_PROVIDER` / `AGENT_LLM_MODEL` | override provider/model |
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Run in GitLab CI (recommended today)
 
-## Suggestions for a good README
+Because the GitLab instance is internal-only (not reachable from the public
+internet), the simplest way to run the agent **now** is inside a GitLab CI job:
+the runner already reaches GitLab, and it can reach the public Siemens AI
+gateway outbound. No VPC required. (The Lambda entry point is kept for a later
+VPC-based webhook deployment — see below.)
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+The CI entry point is `ci_entry.py`. It auto-detects the situation from GitLab's
+predefined CI variables:
 
-## Name
-Choose a self-explaining name for your project.
+| Situation | What it does |
+|-----------|--------------|
+| Merge-request pipeline (`CI_PIPELINE_SOURCE == merge_request_event`) | Reviews `CI_MERGE_REQUEST_IID` and **posts** comments to that MR |
+| Feature branch, an open MR (branch → default) already exists | Reviews that MR and **posts** comments to it |
+| Feature branch, **no** MR yet | Compares the branch against the **default branch** (`get_branch_diff`) and **prints** the review in the job log |
+| On the default branch | Skips (nothing to review) |
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+This repo both **hosts** the agent and **self-tests** it. The `.gitlab-ci.yml`
+here defines a `code_review` job (stage `review`) that runs the agent against
+this repo's own MRs/branches — a working example of what other projects will
+do. It uses the hardened Python image:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```
+${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Because the agent code lives in this repo, the self-test job installs
+`requirements.txt` and runs `ci_entry.py` directly (no clone).
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Setup for THIS repo (self-test): add masked CI/CD variables
+(Settings → CI/CD → Variables):
+   - `AGENT_SIEMENS_API_KEY` — Siemens AI gateway key (`SIAK-...`)
+   - `GITLAB_TOKEN` — a token with the **`api`** scope (project/group access
+     token or PAT). `CI_JOB_TOKEN` alone cannot post notes.
+   - Optional: `AGENT_LLM_MODEL`, `GITLAB_VERIFY_SSL` / `GITLAB_CA_BUNDLE`,
+     `AGENT_VERBOSE`.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Setup for OTHER repos (consumers): use the commented `code_review_external`
+template at the bottom of this repo's `.gitlab-ci.yml`. It clones the agent from
+`…/pd-analyzer/review-agent`, installs it, and runs `ci_entry.py` against the
+consuming repo. Set the same masked variables there.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Both variants are `allow_failure: true` so a review never blocks the pipeline.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### Output verbosity
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+By default the CI job prints **friendly, non-technical progress** (e.g.
+"Reviewing merge request !503 — reading the changes and writing feedback…",
+"Done — the review has been posted to merge request !503."). Errors are always
+shown. To see the **full technical logs** (every tool call, HTTP request, and
+loop iteration — the original behavior), set `AGENT_VERBOSE=true` (or
+`AGENT_DEBUG=true`, or pass `--verbose`/`-v`).
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+The post-completion fallback (re-prompt once, then post the review directly if
+the model skipped it) applies **only in MR mode**. Branch mode is always
+print-only.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Feature-branch diffs are always evaluated **in the context of the default
+branch** (via the compare API using the merge-base), matching what an MR would
+show.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Deploy to Lambda (later — needs VPC)
 
-## License
-For open source projects, say how it is licensed.
+1. Package `src/` + deps into a Lambda zip (or container). Handler:
+   `agent.lambda_handler.lambda_handler`. Runtime: Python 3.10+.
+   Recommended timeout: 300–900s; memory: 512MB+.
+2. Set env vars: `GITLAB_URL`, `GITLAB_TOKEN`, `AGENT_API_KEY` (and provider
+   overrides as needed).
+3. Put the Lambda behind API Gateway (HTTP API, POST route).
+4. In GitLab: **Project → Settings → Webhooks**, add the API Gateway URL,
+   enable **Merge request events**, set a **Secret token**, and save.
+   (Optionally verify `X-Gitlab-Token` in the handler for defense in depth.)
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+The handler returns HTTP 200 even for ignored/errored events so GitLab does not
+auto-disable the webhook. It reviews `open` / `reopen`, and `update` only when
+new commits changed the diff; drafts/WIP are skipped.
+
+## Local test (offline)
+
+```bash
+python -m venv .venv && . .venv/Scripts/activate   # Windows: .venv\Scripts\activate
+pip install -e .
+# Dry parse of the sample webhook (no network/LLM):
+python - <<'PY'
+import json
+from agent.lambda_handler import _parse_gitlab_mr, _should_review, _build_review_prompt
+ev = json.load(open("sample_webhook_event.json"))
+p = _parse_gitlab_mr(ev); print(p); print("review?", _should_review(p))
+print(_build_review_prompt(p))
+PY
+```
+
+To exercise it end-to-end, set `GITLAB_URL`/`GITLAB_TOKEN`/`AGENT_API_KEY` and
+invoke `lambda_handler` with the sample event as the `body`.
+
+## Adding checks or new agents
+
+- Tweak the review behavior by editing `agents/mr_review/instructions.md`.
+- Add a capability by dropping a new `Tool` subclass into
+  `agents/mr_review/tools/` — it is auto-discovered, no wiring needed.
+- Add a whole new agent by creating another folder under `agents/` and setting
+  `AGENT_FLAVOR`.

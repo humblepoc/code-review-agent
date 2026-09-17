@@ -1,54 +1,82 @@
-# GitLab CI stage that runs the MR review agent inside the pipeline.
+# CI for the MR review agent.
 #
-# WHY CI (not Lambda yet): the GitLab instance is internal-only. A GitLab runner
-# already sits inside the network and can reach both GitLab and the public
-# Siemens AI gateway, so the review runs here without any VPC setup. (The Lambda
-# entry point is kept in the repo for a later VPC-based webhook deployment.)
+# This repo hosts the agent AND self-tests it: the `code_review` job below runs
+# the agent against this very repo's merge requests / branches, mimicking what
+# other projects will do. Because the agent code lives here, the job just runs
+# `ci_entry.py` directly (no clone needed).
 #
-# HOW TO USE THIS in a target repository:
-#   1. Copy this job (or `include:` it from a central location) into the repo's
-#      .gitlab-ci.yml.
-#   2. Set CI/CD variables (Settings -> CI/CD -> Variables), masked:
-#        AGENT_SIEMENS_API_KEY  = SIAK-...            (Siemens AI gateway key)
-#        GITLAB_TOKEN           = <token with 'api'>  (to read diffs + post notes)
-#      Optionally:
-#        AGENT_REPO_URL         = https://<host>/<group>/mr-review-agent.git
-#        AGENT_REPO_REF         = main
-#        AGENT_LLM_MODEL        = qwen-3.8-27b
-#        GITLAB_VERIFY_SSL      = "false"             (if using an internal CA)
+# Other repos consume the agent via the `code_review_external` template at the
+# bottom (kept commented as a copy-paste reference).
 #
-# BEHAVIOR:
-#   - Merge-request pipeline  -> reviews the MR and posts comments.
+# WHY CI (not Lambda yet): the GitLab instance is internal-only. The runner
+# already reaches GitLab and can reach the public Siemens AI gateway outbound,
+# so no VPC is required. (The Lambda entry point stays in the repo for a later
+# VPC-based webhook deployment.)
+#
+# REQUIRED CI/CD VARIABLES (Settings -> CI/CD -> Variables, masked):
+#   AGENT_SIEMENS_API_KEY  = SIAK-...            Siemens AI gateway key
+#   GITLAB_TOKEN           = <token with 'api'>  read diffs + post notes
+#
+# BEHAVIOR (auto-detected by ci_entry.py):
+#   - Merge-request pipeline  -> reviews the MR and POSTS comments.
 #   - Feature-branch pipeline -> if an open MR (branch -> default) exists, posts
-#                                to it; otherwise prints the review in this log.
+#                                to it; otherwise PRINTS the review in this log.
 
-code_review:
-  stage: test
-  image: python:3.11-slim
+stages:
+  - review
+
+# Common config shared by the self-test job and the external template.
+.code_review_base:
+  stage: review
+  image: ${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
   variables:
-    # Where to fetch the agent code from. Override in CI/CD variables if your
-    # copy lives elsewhere.
-    AGENT_REPO_URL: "${CI_SERVER_URL}/tools/mr-review-agent.git"
-    AGENT_REPO_REF: "main"
-    # Provider/model defaults (env wins over config.yaml).
+    # Provider/model (env wins over config.yaml).
     AGENT_LLM_PROVIDER: "siemens-ai"
     AGENT_LLM_MODEL: "qwen-3.8-27b"
-    # This internal GitLab uses an internal CA; disable strict verify unless you
-    # provide GITLAB_CA_BUNDLE. Set to "true" once a CA bundle is available.
+    # Internal CA: disable strict TLS verify unless a CA bundle is provided via
+    # GITLAB_CA_BUNDLE. Set to "true" once a bundle is available.
     GITLAB_VERIFY_SSL: "false"
-    # Set to "true" to print full technical logs (tool calls, HTTP, iterations).
-    # Default is friendly, non-technical progress output; errors always show.
+    # "true" -> full technical logs (tool calls, HTTP, iterations).
+    # default -> friendly, non-technical progress; errors always show.
     AGENT_VERBOSE: "false"
+    # Needed for merge-request pipelines to expose CI_MERGE_REQUEST_* vars.
+    GIT_STRATEGY: fetch
   rules:
-    # Run on merge-request pipelines...
+    # Merge-request pipelines...
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    # ...and on branch pipelines for non-default branches (feature branches).
+    # ...and pushes to non-default (feature) branches.
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+  allow_failure: true    # a review must never block the pipeline
+
+# ---------------------------------------------------------------------------
+# Self-test: run THIS repo's agent against THIS repo. Mimics the flow other
+# projects will run. No clone — the agent code is already checked out here.
+# ---------------------------------------------------------------------------
+code_review:
+  extends: .code_review_base
   before_script:
     - python -V
-    - git clone --depth 1 --branch "$AGENT_REPO_REF" "$AGENT_REPO_URL" /opt/agent
-    - pip install --quiet -r /opt/agent/requirements.txt
+    - pip install --quiet -r requirements.txt
   script:
-    # ci_entry.py auto-detects MR vs branch mode from GitLab CI variables.
-    - python /opt/agent/ci_entry.py
-  allow_failure: true   # a review should not block the pipeline
+    - python ci_entry.py
+
+# ---------------------------------------------------------------------------
+# Reference template for OTHER repositories (copy into their .gitlab-ci.yml,
+# or `include:` this file and use `extends`). It clones the agent from here,
+# installs it, and runs it against the consuming repo. Left commented so it
+# does not run in this repo.
+# ---------------------------------------------------------------------------
+# code_review_external:
+#   extends: .code_review_base
+#   variables:
+#     AGENT_REPO_URL: "${CI_SERVER_URL}/xfm/components/enablement/tools/pd-analyzer/review-agent.git"
+#     AGENT_REPO_REF: "main"
+#   before_script:
+#     - python -V
+#     - git config --global http.sslVerify false   # internal CA
+#     - git clone --depth 1 --branch "$AGENT_REPO_REF"
+#         "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/xfm/components/enablement/tools/pd-analyzer/review-agent.git"
+#         /opt/agent
+#     - pip install --quiet -r /opt/agent/requirements.txt
+#   script:
+#     - python /opt/agent/ci_entry.py
