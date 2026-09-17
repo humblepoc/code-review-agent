@@ -25,7 +25,7 @@ gitlab:
   token: ""           # PAT with 'api' scope — prefer GITLAB_TOKEN env var
   api_version: v4
   timeout_seconds: 30
-  verify_ssl: true
+  verify_ssl: false   # internal CA — set true and use ca_bundle when available
   ca_bundle: ""       # path to internal CA bundle (preferred over verify_ssl=false); GITLAB_CA_BUNDLE
   webhook_secret: ""  # X-Gitlab-Token shared secret; prefer GITLAB_WEBHOOK_SECRET env var
   post_comments: true # allow posting the review back to the MR

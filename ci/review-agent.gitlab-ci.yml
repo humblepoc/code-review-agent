@@ -39,12 +39,9 @@ code_review:
   stage: review
   image: ${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
   variables:
-    AGENT_LLM_PROVIDER: "siemens-ai"
-    AGENT_LLM_MODEL: "qwen-3.8-27b"
-    # Internal CA: disable strict TLS verify unless GITLAB_CA_BUNDLE is provided.
-    GITLAB_VERIFY_SSL: "false"
-    # "true" -> full technical logs; default -> friendly progress; errors always show.
-    AGENT_VERBOSE: "false"
+    # Only pipeline mechanics + where to fetch the agent from live here.
+    # Provider/model/verify_ssl/verbose come from the agent's config.yaml, and
+    # may be overridden by CI/CD variables if the consumer project sets them.
     # Expose CI_MERGE_REQUEST_* vars on MR pipelines.
     GIT_STRATEGY: fetch
   rules:
@@ -64,7 +61,15 @@ code_review:
       pid = urllib.parse.quote(project, safe="")
       url = f"https://{host}/api/v4/projects/{pid}/repository/archive.tar.gz?sha={ref}"
       ctx = ssl.create_default_context()
-      if os.environ.get("GITLAB_VERIFY_SSL", "true").lower() in ("0", "false", "no", "off"):
+      # The agent code fetch runs before config.yaml is available, so SSL
+      # verification for THIS request is controlled by env only. Internal
+      # instances use a private CA, so default to skipping verification here
+      # unless GITLAB_VERIFY_SSL is explicitly truthy (or GITLAB_CA_BUNDLE set).
+      _verify = os.environ.get("GITLAB_VERIFY_SSL", "false").lower() in ("1", "true", "yes", "on")
+      _ca = os.environ.get("GITLAB_CA_BUNDLE", "")
+      if _ca:
+          ctx.load_verify_locations(_ca)
+      elif not _verify:
           ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
       req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token})
       data = urllib.request.urlopen(req, context=ctx, timeout=60).read()
