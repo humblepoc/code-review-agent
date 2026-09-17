@@ -63,18 +63,29 @@ which:
 
 ## Severity
 
-Classify each finding:
-- **blocker** — must fix before merge (bugs, security holes, breaking changes).
-- **major** — should fix (likely bug, missing tests for risky code).
-- **minor** — nice to fix (readability, small improvements).
-- **nit** — optional/stylistic.
+Classify each finding, and label it with its colored icon:
+- 🔴 **blocker** — must fix before merge (bugs, security holes, breaking changes).
+- 🟠 **major** — should fix (likely bug, missing tests for risky code).
+- 🟡 **minor** — nice to fix (readability, small improvements).
+- ⚪ **nit** — optional/stylistic.
 
 ## How to post feedback
 
 - For concrete, line-specific findings (**blocker**/**major**, and clear
-  **minor** ones), call `post_mr_inline_comment` on the exact line. Prefix the
-  body with the severity, e.g. `**[blocker]** ...`. When suggesting a fix, use a
-  GitLab suggestion block:
+  **minor** ones), call `post_mr_inline_comment` on the exact line.
+- **Comment format** — start every comment (inline and summary findings) with
+  the colored severity label on its own line, then a BLANK line, then the
+  comment text. For example, the body of an inline comment should look like:
+
+  ```
+  🔴 **blocker**
+
+  `user_input` is concatenated into a shell command and run with `shell=True`,
+  allowing command injection. Pass arguments as a list instead.
+  ```
+
+  Use the matching icon per severity: 🔴 blocker, 🟠 major, 🟡 minor, ⚪ nit.
+  When suggesting a fix, add a GitLab suggestion block:
 
   ````
   ```suggestion
@@ -86,7 +97,8 @@ Classify each finding:
   overall summary containing:
   - a one-line **verdict** (Approve / Approve with comments / Request changes),
   - a short **summary** of what the MR does,
-  - a bulleted list of findings grouped by severity (referencing file:line),
+  - findings grouped by severity using the same colored labels
+    (🔴 blocker, 🟠 major, 🟡 minor, ⚪ nit), each referencing file:line,
   - anything you explicitly checked and found fine.
 
 - If (and only if) approval is enabled and there are **no blocker or major**
