@@ -112,12 +112,26 @@ Setup for THIS repo (self-test): add masked CI/CD variables
    - Optional: `AGENT_LLM_MODEL`, `GITLAB_VERIFY_SSL` / `GITLAB_CA_BUNDLE`,
      `AGENT_VERBOSE`.
 
-Setup for OTHER repos (consumers): use the commented `code_review_external`
-template at the bottom of this repo's `.gitlab-ci.yml`. It clones the agent from
-`…/pd-analyzer/review-agent`, installs it, and runs `ci_entry.py` against the
-consuming repo. Set the same masked variables there.
+Setup for OTHER repos (consumers): add a 4-line `include` to the consuming
+repo's `.gitlab-ci.yml` — no agent code needs to live there. The template clones
+the agent at pipeline time and reviews the consumer's own MRs/branches:
 
-Both variants are `allow_failure: true` so a review never blocks the pipeline.
+```yaml
+include:
+  - project: 'xfm/components/enablement/tools/pd-analyzer/review-agent'
+    ref: main
+    file: '/ci/review-agent.gitlab-ci.yml'
+
+stages:
+  - review        # or merge 'review' into your existing stages
+```
+
+Then set the same masked CI/CD variables in the consumer project
+(`AGENT_SIEMENS_API_KEY`, `GITLAB_TOKEN`). See
+`ci/review-agent.gitlab-ci.yml` for the full template and options.
+
+Both the self-test job and the consumer template are `allow_failure: true` so a
+review never blocks the pipeline.
 
 ### Output verbosity
 
