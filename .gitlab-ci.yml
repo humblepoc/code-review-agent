@@ -5,8 +5,8 @@
 # other projects will do. Because the agent code lives here, the job just runs
 # `ci_entry.py` directly (no clone needed).
 #
-# Other repos consume the agent via the `code_review_external` template at the
-# bottom (kept commented as a copy-paste reference).
+# Other repos consume the agent WITHOUT copying it: they `include:` the template
+# at `/ci/review-agent.gitlab-ci.yml` (see that file's header for the snippet).
 #
 # WHY CI (not Lambda yet): the GitLab instance is internal-only. The runner
 # already reaches GitLab and can reach the public Siemens AI gateway outbound,
@@ -60,23 +60,3 @@ code_review:
   script:
     - python ci_entry.py
 
-# ---------------------------------------------------------------------------
-# Reference template for OTHER repositories (copy into their .gitlab-ci.yml,
-# or `include:` this file and use `extends`). It clones the agent from here,
-# installs it, and runs it against the consuming repo. Left commented so it
-# does not run in this repo.
-# ---------------------------------------------------------------------------
-# code_review_external:
-#   extends: .code_review_base
-#   variables:
-#     AGENT_REPO_URL: "${CI_SERVER_URL}/xfm/components/enablement/tools/pd-analyzer/review-agent.git"
-#     AGENT_REPO_REF: "main"
-#   before_script:
-#     - python -V
-#     - git config --global http.sslVerify false   # internal CA
-#     - git clone --depth 1 --branch "$AGENT_REPO_REF"
-#         "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/xfm/components/enablement/tools/pd-analyzer/review-agent.git"
-#         /opt/agent
-#     - pip install --quiet -r /opt/agent/requirements.txt
-#   script:
-#     - python /opt/agent/ci_entry.py

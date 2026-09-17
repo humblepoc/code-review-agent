@@ -1,0 +1,65 @@
+# Reusable code-review template for OTHER repositories.
+#
+# ---------------------------------------------------------------------------
+# HOW TO USE IN A CONSUMER REPO
+# ---------------------------------------------------------------------------
+# Add this to the consuming project's .gitlab-ci.yml:
+#
+#   include:
+#     - project: 'xfm/components/enablement/tools/pd-analyzer/review-agent'
+#       ref: main
+#       file: '/ci/review-agent.gitlab-ci.yml'
+#
+#   stages:
+#     - review        # (or merge 'review' into your existing stages)
+#
+# Then set these CI/CD variables in the consumer project
+# (Settings -> CI/CD -> Variables), Masked, and NOT Protected (unless your
+# review branches are protected):
+#
+#   AGENT_SIEMENS_API_KEY  = SIAK-...            Siemens AI gateway key
+#   GITLAB_TOKEN           = <token with 'api'>  read diffs + post notes
+#
+# That's it. No agent code needs to live in the consumer repo — the job below
+# fetches it from the review-agent project at pipeline time.
+#
+# BEHAVIOR (auto-detected):
+#   - Merge-request pipeline  -> reviews the MR and POSTS comments.
+#   - Feature-branch pipeline -> if an open MR (branch -> default) exists, posts
+#                                to it; otherwise PRINTS the review in the log.
+# ---------------------------------------------------------------------------
+
+variables:
+  # Where the review-agent code lives, and which ref to use. Override in the
+  # consumer repo's variables if you pin to a tag/branch.
+  REVIEW_AGENT_PROJECT: "xfm/components/enablement/tools/pd-analyzer/review-agent"
+  REVIEW_AGENT_REF: "main"
+
+code_review:
+  stage: review
+  image: ${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
+  variables:
+    AGENT_LLM_PROVIDER: "siemens-ai"
+    AGENT_LLM_MODEL: "qwen-3.8-27b"
+    # Internal CA: disable strict TLS verify unless GITLAB_CA_BUNDLE is provided.
+    GITLAB_VERIFY_SSL: "false"
+    # "true" -> full technical logs; default -> friendly progress; errors always show.
+    AGENT_VERBOSE: "false"
+    # Expose CI_MERGE_REQUEST_* vars on MR pipelines.
+    GIT_STRATEGY: fetch
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+  before_script:
+    - python -V
+    # Fetch the agent code (shallow) from the review-agent project.
+    - git config --global http.sslVerify false
+    - git clone --depth 1 --branch "$REVIEW_AGENT_REF"
+        "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${REVIEW_AGENT_PROJECT}.git"
+        /tmp/review-agent
+    - pip install --quiet -r /tmp/review-agent/requirements.txt
+  script:
+    # ci_entry.py reads the CONSUMER repo's CI_* vars (project, MR, branch) from
+    # the environment, and reviews that repo — not the agent repo.
+    - python /tmp/review-agent/ci_entry.py
+  allow_failure: true   # a review must never block the pipeline
