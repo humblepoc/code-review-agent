@@ -19,6 +19,18 @@ import httpx
 log = logging.getLogger(__name__)
 
 
+# Prefix prepended to every comment the agent posts on a merge request.
+COMMENT_PREFIX = "AI Review Agent:"
+
+
+def _with_prefix(body: str) -> str:
+    """Prepend COMMENT_PREFIX to a comment body (idempotent)."""
+    body = body or ""
+    if body.lstrip().startswith(COMMENT_PREFIX):
+        return body
+    return f"{COMMENT_PREFIX} {body}"
+
+
 class GitLabError(RuntimeError):
     """Raised when a GitLab API call fails."""
 
@@ -169,7 +181,7 @@ class GitLabClient:
         """Post a general (non-inline) comment on the MR."""
         return self._post(
             f"/projects/{self._pid(project_id)}/merge_requests/{mr_iid}/notes",
-            json={"body": body},
+            json={"body": _with_prefix(body)},
         )
 
     def create_mr_discussion(
@@ -180,7 +192,7 @@ class GitLabClient:
         position: Optional[dict] = None,
     ) -> dict:
         """Create a discussion, optionally anchored to a line (inline comment)."""
-        payload: dict[str, Any] = {"body": body}
+        payload: dict[str, Any] = {"body": _with_prefix(body)}
         if position:
             payload["position"] = position
         return self._post(
