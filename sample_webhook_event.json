@@ -1,0 +1,28 @@
+{
+  "object_kind": "merge_request",
+  "event_type": "merge_request",
+  "user": {
+    "username": "jane.dev",
+    "name": "Jane Dev"
+  },
+  "project": {
+    "id": 42,
+    "name": "payments-api",
+    "path_with_namespace": "team/payments-api",
+    "web_url": "https://gitlab.example.com/team/payments-api"
+  },
+  "object_attributes": {
+    "id": 99001,
+    "iid": 7,
+    "title": "Add refund endpoint",
+    "description": "Implements POST /refunds and wires it to the ledger service.",
+    "state": "opened",
+    "action": "open",
+    "draft": false,
+    "work_in_progress": false,
+    "source_branch": "feature/refund-endpoint",
+    "target_branch": "main",
+    "last_commit": { "id": "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b" },
+    "url": "https://gitlab.example.com/team/payments-api/-/merge_requests/7"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "object_kind": "merge_request",
+  "event_type": "merge_request",
+  "user": {
+    "username": "local-sim",
+    "name": "Local Simulation"
+  },
+  "project": {
+    "id": "xfm/components/enablement/auditlogging/auditloggingservice",
+    "name": "auditloggingservice",
+    "path_with_namespace": "xfm/components/enablement/auditlogging/auditloggingservice",
+    "web_url": "https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/auditlogging/auditloggingservice"
+  },
+  "object_attributes": {
+    "id": 503,
+    "iid": 503,
+    "title": "Simulated review trigger for MR !503",
+    "description": "Local end-to-end simulation event.",
+    "state": "opened",
+    "action": "open",
+    "draft": false,
+    "work_in_progress": false,
+    "source_branch": "unknown",
+    "target_branch": "unknown",
+    "url": "https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/auditlogging/auditloggingservice/-/merge_requests/503"
+  }
+}

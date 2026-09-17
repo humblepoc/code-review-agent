@@ -1,0 +1,54 @@
+# GitLab CI stage that runs the MR review agent inside the pipeline.
+#
+# WHY CI (not Lambda yet): the GitLab instance is internal-only. A GitLab runner
+# already sits inside the network and can reach both GitLab and the public
+# Siemens AI gateway, so the review runs here without any VPC setup. (The Lambda
+# entry point is kept in the repo for a later VPC-based webhook deployment.)
+#
+# HOW TO USE THIS in a target repository:
+#   1. Copy this job (or `include:` it from a central location) into the repo's
+#      .gitlab-ci.yml.
+#   2. Set CI/CD variables (Settings -> CI/CD -> Variables), masked:
+#        AGENT_SIEMENS_API_KEY  = SIAK-...            (Siemens AI gateway key)
+#        GITLAB_TOKEN           = <token with 'api'>  (to read diffs + post notes)
+#      Optionally:
+#        AGENT_REPO_URL         = https://<host>/<group>/mr-review-agent.git
+#        AGENT_REPO_REF         = main
+#        AGENT_LLM_MODEL        = qwen-3.8-27b
+#        GITLAB_VERIFY_SSL      = "false"             (if using an internal CA)
+#
+# BEHAVIOR:
+#   - Merge-request pipeline  -> reviews the MR and posts comments.
+#   - Feature-branch pipeline -> if an open MR (branch -> default) exists, posts
+#                                to it; otherwise prints the review in this log.
+
+code_review:
+  stage: test
+  image: python:3.11-slim
+  variables:
+    # Where to fetch the agent code from. Override in CI/CD variables if your
+    # copy lives elsewhere.
+    AGENT_REPO_URL: "${CI_SERVER_URL}/tools/mr-review-agent.git"
+    AGENT_REPO_REF: "main"
+    # Provider/model defaults (env wins over config.yaml).
+    AGENT_LLM_PROVIDER: "siemens-ai"
+    AGENT_LLM_MODEL: "qwen-3.8-27b"
+    # This internal GitLab uses an internal CA; disable strict verify unless you
+    # provide GITLAB_CA_BUNDLE. Set to "true" once a CA bundle is available.
+    GITLAB_VERIFY_SSL: "false"
+    # Set to "true" to print full technical logs (tool calls, HTTP, iterations).
+    # Default is friendly, non-technical progress output; errors always show.
+    AGENT_VERBOSE: "false"
+  rules:
+    # Run on merge-request pipelines...
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # ...and on branch pipelines for non-default branches (feature branches).
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+  before_script:
+    - python -V
+    - git clone --depth 1 --branch "$AGENT_REPO_REF" "$AGENT_REPO_URL" /opt/agent
+    - pip install --quiet -r /opt/agent/requirements.txt
+  script:
+    # ci_entry.py auto-detects MR vs branch mode from GitLab CI variables.
+    - python /opt/agent/ci_entry.py
+  allow_failure: true   # a review should not block the pipeline

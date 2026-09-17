@@ -1,0 +1,46 @@
+# MR review agent configuration.
+#
+# Secrets should come from environment variables (which override this file),
+# especially in Lambda:
+#   GITLAB_URL, GITLAB_TOKEN            -> GitLab connection
+#   AGENT_API_KEY / AGENT_SIEMENS_API_KEY -> LLM gateway key
+
+flavor: mr_review
+max_iterations: 30
+log_level: INFO
+
+llm:
+  # One of: siemens-ai | anthropic | openai | gemini | copilot
+  provider: siemens-ai
+  model: ""          # empty -> per-provider default
+  base_url: ""       # empty -> per-provider default
+  api_key: ""        # prefer AGENT_API_KEY env var
+  siemens_api_key: ""
+  temperature: 0.0
+  max_tokens: 4096
+
+gitlab:
+  # e.g. https://gitlab.com or https://gitlab.mycompany.com  (no /api/v4)
+  base_url: ""        # prefer GITLAB_URL env var
+  token: ""           # PAT with 'api' scope — prefer GITLAB_TOKEN env var
+  api_version: v4
+  timeout_seconds: 30
+  verify_ssl: true
+  ca_bundle: ""       # path to internal CA bundle (preferred over verify_ssl=false); GITLAB_CA_BUNDLE
+  webhook_secret: ""  # X-Gitlab-Token shared secret; prefer GITLAB_WEBHOOK_SECRET env var
+  post_comments: true # allow posting the review back to the MR
+  approve: false      # do NOT auto-approve by default
+  ignore_paths:
+    - package-lock.json
+    - yarn.lock
+    - poetry.lock
+    - Pipfile.lock
+    - go.sum
+    - /vendor/
+    - /node_modules/
+    - /dist/
+    - /build/
+  max_diff_chars: 60000
+
+lambda:
+  delay_seconds: 0
