@@ -52,11 +52,33 @@ code_review:
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
   before_script:
     - python -V
-    # Fetch the agent code (shallow) from the review-agent project.
-    - git config --global http.sslVerify false
-    - git clone --depth 1 --branch "$REVIEW_AGENT_REF"
-        "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${REVIEW_AGENT_PROJECT}.git"
-        /tmp/review-agent
+    # Fetch the agent code WITHOUT git/curl (hardened images may lack them):
+    # download the repo archive via the GitLab API using Python stdlib only.
+    - |
+      python - <<'PY'
+      import os, ssl, tarfile, urllib.request, urllib.parse, io
+      host = os.environ["CI_SERVER_HOST"]
+      project = os.environ["REVIEW_AGENT_PROJECT"]
+      ref = os.environ.get("REVIEW_AGENT_REF", "main")
+      token = os.environ["GITLAB_TOKEN"]
+      pid = urllib.parse.quote(project, safe="")
+      url = f"https://{host}/api/v4/projects/{pid}/repository/archive.tar.gz?sha={ref}"
+      ctx = ssl.create_default_context()
+      if os.environ.get("GITLAB_VERIFY_SSL", "true").lower() in ("0", "false", "no", "off"):
+          ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+      req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token})
+      data = urllib.request.urlopen(req, context=ctx, timeout=60).read()
+      dest = "/tmp/review-agent"
+      with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
+          members = t.getmembers()
+          root = members[0].name.split("/")[0] + "/"
+          for m in members:
+              if m.name.startswith(root):
+                  m.name = m.name[len(root):]
+                  if m.name:
+                      t.extract(m, dest)
+      print("Fetched review-agent into", dest)
+      PY
     - pip install --quiet -r /tmp/review-agent/requirements.txt
   script:
     # ci_entry.py reads the CONSUMER repo's CI_* vars (project, MR, branch) from
