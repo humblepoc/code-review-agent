@@ -1,4 +1,4 @@
-# AI Review Agent — Integration Guide
+# AI Review Agent - Integration Guide
 
 Add the following to your project's `.gitlab-ci.yml`:
 
