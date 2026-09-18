@@ -4,7 +4,7 @@ Add the following to your project's `.gitlab-ci.yml`:
 
 ```yaml
 include:
-  - project: 'xfm/components/enablement/tools/pd-analyzer/review-agent'
+  - project: 'your-group/code-review-agent'
     ref: main
     file: '/ci/review-agent.gitlab-ci.yml'
 
