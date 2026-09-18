@@ -17,8 +17,8 @@
 # (Settings -> CI/CD -> Variables), Masked, and NOT Protected (unless your
 # review branches are protected):
 #
-#   AGENT_SIEMENS_API_KEY  = SIAK-...            Siemens AI gateway key
-#   GITLAB_TOKEN           = <token with 'api'>  read diffs + post notes
+#   AGENT_SIEMENS_API_KEY  = ...            
+#   GITLAB_TOKEN           = <token with 'api'>  
 #
 # That's it. No agent code needs to live in the consumer repo — the job below
 # fetches it from the review-agent project at pipeline time.
