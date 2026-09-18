@@ -11,10 +11,3 @@ include:
 stages:
   - review        # add this stage, or merge 'review' into your existing stages
 ```
-
-Then add two **Masked** CI/CD variables (Settings → CI/CD → Variables):
-
-| Variable | Value |
-|----------|-------|
-| `GITLAB_TOKEN` | A token with the **`api`** scope (Project Access Token recommended). |
-| `AGENT_SIEMENS_API_KEY` | Your Siemens AI gateway key (`SIAK-...`). |
