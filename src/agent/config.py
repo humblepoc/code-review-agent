@@ -32,10 +32,10 @@ log = logging.getLogger(__name__)
 # Per-provider defaults for model and base_url. Used by apply_provider_defaults()
 # to fill in empty values so users only need to set ``provider`` in YAML.
 PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    "siemens-ai": {"model": "qwen-3.8-27b",              "base_url": "https://api.siemens.com/llm"},
-    "anthropic":  {"model": "claude-sonnet-4-6@default", "base_url": "https://llm.sdc.siemens.cloud"},
-    "openai":     {"model": "",                          "base_url": "https://llm.sdc.siemens.cloud"},
-    "gemini":     {"model": "",                          "base_url": "https://llm.sdc.siemens.cloud"},
+    "custom":     {"model": "",                          "base_url": ""},
+    "anthropic":  {"model": "claude-sonnet-4-6@default", "base_url": ""},
+    "openai":     {"model": "",                          "base_url": ""},
+    "gemini":     {"model": "",                          "base_url": ""},
     "copilot":    {"model": "claude-sonnet-4",           "base_url": ""},
 }
 
@@ -55,11 +55,11 @@ def apply_provider_defaults(llm: "LLMConfig") -> None:
 
 
 class LLMConfig(BaseModel):
-    provider: str = "siemens-ai"
+    provider: str = "custom"
     model: str = ""              # resolved by apply_provider_defaults()
     base_url: str = ""           # resolved by apply_provider_defaults()
-    api_key: str = ""            # SDC LLM Gateway key
-    siemens_api_key: str = ""    # Siemens AI Gateway key (SIAK-...); falls back to api_key
+    api_key: str = ""            # LLM gateway key
+    custom_api_key: str = ""     # Custom gateway key; falls back to api_key
     pat: str = ""                # GitHub PAT with copilot scope (only used by copilot provider)
     temperature: float = 0.0
     max_tokens: int = 4096
@@ -191,15 +191,15 @@ def _apply_env(cfg: AgentConfig) -> None:
     """Apply environment variable overrides (highest priority — wins over YAML).
 
     Supported variables:
-        LLM:    AGENT_API_KEY, AGENT_SIEMENS_API_KEY, AGENT_LLM_PROVIDER,
+        LLM:    AGENT_API_KEY, AGENT_CUSTOM_API_KEY, AGENT_LLM_PROVIDER,
                 AGENT_LLM_MODEL, AGENT_BASE_URL, AGENT_LLM_PAT
         Agent:  AGENT_FLAVOR, AGENT_MAX_ITERATIONS, AGENT_LOG_LEVEL
         GitLab: GITLAB_URL, GITLAB_TOKEN, GITLAB_POST_COMMENTS, GITLAB_APPROVE
     """
     if v := os.environ.get("AGENT_API_KEY"):
         cfg.llm.api_key = v
-    if v := os.environ.get("AGENT_SIEMENS_API_KEY"):
-        cfg.llm.siemens_api_key = v
+    if v := os.environ.get("AGENT_CUSTOM_API_KEY"):
+        cfg.llm.custom_api_key = v
     if v := os.environ.get("AGENT_LLM_PROVIDER"):
         cfg.llm.provider = v
     if v := os.environ.get("AGENT_LLM_MODEL"):

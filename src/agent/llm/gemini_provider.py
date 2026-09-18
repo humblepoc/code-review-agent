@@ -1,4 +1,4 @@
-"""Gemini provider via SDC LLM Gateway."""
+"""Gemini provider via LLM gateway."""
 
 from __future__ import annotations
 

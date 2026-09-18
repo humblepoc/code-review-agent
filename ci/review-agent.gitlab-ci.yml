@@ -6,7 +6,7 @@
 # Add this to the consuming project's .gitlab-ci.yml:
 #
 #   include:
-#     - project: 'xfm/components/enablement/tools/pd-analyzer/review-agent'
+#     - project: 'your-group/code-review-agent'
 #       ref: main
 #       file: '/ci/review-agent.gitlab-ci.yml'
 #
@@ -17,7 +17,7 @@
 # (Settings -> CI/CD -> Variables), Masked, and NOT Protected (unless your
 # review branches are protected):
 #
-#   AGENT_SIEMENS_API_KEY  = ...            
+#   AGENT_CUSTOM_API_KEY   = ...            
 #   GITLAB_TOKEN           = <token with 'api'>  
 #
 # That's it. No agent code needs to live in the consumer repo — the job below
@@ -32,12 +32,12 @@
 variables:
   # Where the review-agent code lives, and which ref to use. Override in the
   # consumer repo's variables if you pin to a tag/branch.
-  REVIEW_AGENT_PROJECT: "xfm/components/enablement/tools/pd-analyzer/review-agent"
+  REVIEW_AGENT_PROJECT: "your-group/code-review-agent"
   REVIEW_AGENT_REF: "main"
 
 code_review:
   stage: review
-  image: ${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
+  image: python:3.11-slim
   variables:
     # Only pipeline mechanics + where to fetch the agent from live here.
     # Provider/model/verify_ssl/verbose come from the agent's config.yaml, and

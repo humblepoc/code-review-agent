@@ -1,4 +1,4 @@
-"""Claude provider via SDC LLM Gateway (/v1/messages)."""
+"""Claude provider via LLM gateway (/v1/messages)."""
 
 from __future__ import annotations
 

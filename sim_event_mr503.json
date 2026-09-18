@@ -6,10 +6,10 @@
     "name": "Local Simulation"
   },
   "project": {
-    "id": "xfm/components/enablement/auditlogging/auditloggingservice",
-    "name": "auditloggingservice",
-    "path_with_namespace": "xfm/components/enablement/auditlogging/auditloggingservice",
-    "web_url": "https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/auditlogging/auditloggingservice"
+    "id": "example-group/example-service",
+    "name": "example-service",
+    "path_with_namespace": "example-group/example-service",
+    "web_url": "https://gitlab.example.com/example-group/example-service"
   },
   "object_attributes": {
     "id": 503,
@@ -22,6 +22,6 @@
     "work_in_progress": false,
     "source_branch": "unknown",
     "target_branch": "unknown",
-    "url": "https://gitlab.industrysoftware.automation.siemens.com/xfm/components/enablement/auditlogging/auditloggingservice/-/merge_requests/503"
+    "url": "https://gitlab.example.com/example-group/example-service/-/merge_requests/503"
   }
 }

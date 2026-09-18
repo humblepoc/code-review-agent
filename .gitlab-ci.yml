@@ -9,12 +9,12 @@
 # at `/ci/review-agent.gitlab-ci.yml` (see that file's header for the snippet).
 #
 # WHY CI (not Lambda yet): the GitLab instance is internal-only. The runner
-# already reaches GitLab and can reach the public Siemens AI gateway outbound,
+# already reaches GitLab and can reach the LLM gateway outbound,
 # so no VPC is required. (The Lambda entry point stays in the repo for a later
 # VPC-based webhook deployment.)
 #
 # REQUIRED CI/CD VARIABLES (Settings -> CI/CD -> Variables, masked):
-#   AGENT_SIEMENS_API_KEY  = SIAK-...            Siemens AI gateway key
+#   AGENT_CUSTOM_API_KEY   = ...                 custom LLM gateway key
 #   GITLAB_TOKEN           = <token with 'api'>  read diffs + post notes
 #
 # BEHAVIOR (auto-detected by ci_entry.py):
@@ -28,7 +28,7 @@ stages:
 # Common config shared by the self-test job and the external template.
 .code_review_base:
   stage: review
-  image: ${HARBOR_REGISTRY}/container-hardening-service/python:3.11.16-dtx26.09.01-trixie
+  image: python:3.11-slim
   variables:
     # Only pipeline mechanics live here. Provider/model/verify_ssl/verbose and
     # other non-secret defaults come from the agent's config.yaml (code/repo),

@@ -3,19 +3,19 @@
 # Secrets should come from environment variables (which override this file),
 # especially in Lambda:
 #   GITLAB_URL, GITLAB_TOKEN            -> GitLab connection
-#   AGENT_API_KEY / AGENT_SIEMENS_API_KEY -> LLM gateway key
+#   AGENT_API_KEY / AGENT_CUSTOM_API_KEY -> LLM gateway key
 
 flavor: mr_review
 max_iterations: 30
 log_level: INFO
 
 llm:
-  # One of: siemens-ai | anthropic | openai | gemini | copilot
-  provider: siemens-ai
+  # One of: custom | anthropic | openai | gemini | copilot
+  provider: custom
   model: ""          # empty -> per-provider default
   base_url: ""       # empty -> per-provider default
   api_key: ""        # prefer AGENT_API_KEY env var
-  siemens_api_key: ""
+  custom_api_key: ""
   temperature: 0.0
   max_tokens: 4096
 

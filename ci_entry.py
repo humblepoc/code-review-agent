@@ -3,7 +3,7 @@
 This is an alternative to the Lambda entry point (which is kept for later
 VPC-based webhook deployment). Running in CI works today because the GitLab
 runner is already inside the network that can reach the internal GitLab, and
-it can reach the public Siemens AI gateway outbound.
+it can reach the LLM gateway outbound.
 
 Mode detection (from GitLab predefined CI variables):
 
@@ -17,7 +17,7 @@ Mode detection (from GitLab predefined CI variables):
        the review to the job log only (no MR to comment on).
 
 Required CI/CD variables:
-  * AGENT_SIEMENS_API_KEY  — Siemens AI gateway key (SIAK-...)
+  * AGENT_CUSTOM_API_KEY   — custom LLM gateway key
   * GITLAB_TOKEN           — a token with 'api' scope (project/group access
                              token or a PAT). CI_JOB_TOKEN is NOT enough to
                              post notes, so provide GITLAB_TOKEN explicitly.
@@ -234,11 +234,11 @@ def main() -> int:
     _setup_logging(verbose)
 
     cfg = load_config()
-    # CI defaults: use Qwen on Siemens AI unless overridden by env/config.
+    # CI defaults: use the custom gateway unless overridden by env/config.
     if not os.environ.get("AGENT_LLM_PROVIDER"):
-        cfg.llm.provider = cfg.llm.provider or "siemens-ai"
+        cfg.llm.provider = cfg.llm.provider or "custom"
     if not os.environ.get("AGENT_LLM_MODEL") and not cfg.llm.model:
-        cfg.llm.model = "qwen-3.8-27b"
+        cfg.llm.model = ""
     apply_provider_defaults(cfg.llm)
 
     # GitLab connection from CI env if not already configured.

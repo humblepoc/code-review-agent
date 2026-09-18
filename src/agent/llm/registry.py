@@ -10,7 +10,7 @@ from agent.llm.base import LLMProvider
 def get_provider(name: str, cfg: AgentConfig) -> LLMProvider:
     """Create an LLM provider by name."""
     factories = {
-        "siemens-ai": _make_siemens_ai,
+        "custom": _make_custom,
         "anthropic": _make_anthropic,
         "openai": _make_openai,
         "gemini": _make_gemini,
@@ -58,10 +58,10 @@ def _make_copilot(cfg: AgentConfig) -> LLMProvider:
     )
 
 
-def _make_siemens_ai(cfg: AgentConfig) -> LLMProvider:
-    from agent.llm.siemens_provider import SiemensAIProvider
-    return SiemensAIProvider(
-        api_key=cfg.llm.siemens_api_key or cfg.llm.api_key,
+def _make_custom(cfg: AgentConfig) -> LLMProvider:
+    from agent.llm.custom_provider import CustomProvider
+    return CustomProvider(
+        api_key=cfg.llm.custom_api_key or cfg.llm.api_key,
         model=cfg.llm.model,
         base_url=cfg.llm.base_url,
     )

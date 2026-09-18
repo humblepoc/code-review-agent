@@ -1,4 +1,4 @@
-"""OpenAI-compatible provider (GPT, Nova via SDC Gateway)."""
+"""OpenAI-compatible provider (GPT, Nova via LLM gateway)."""
 
 from __future__ import annotations
 
